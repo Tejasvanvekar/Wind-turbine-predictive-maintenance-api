@@ -48,34 +48,33 @@ RANDOM_STATE = 42
 # LOGISTIC REGRESSION HYPERPARAMETERS
 # ==============================================================================
 LR_CONFIG = {
-    "class_weight": {0: 1, 1: 3},   # Normal=1x weight, Anomalous=3x weight
-    "C": 0.1,                        # L1 Penalty strength (strong regularization)
-    "penalty": "l1",                 # Feature selection — shrinks useless weights to zero
-    "solver": "liblinear",           # Required solver for L1 penalties
-    "max_iter": 100,                 # Iterations for initial training
+    "class_weight": {0: 1, 1: 3},
+    "C": float(os.getenv("LR_C", "0.1")),
+    "l1_ratio": float(os.getenv("LR_L1_RATIO", "1.0")),
+    "solver": os.getenv("LR_SOLVER", "liblinear"),
+    "max_iter": int(os.getenv("LR_MAX_ITER", "100")),
     "random_state": RANDOM_STATE,
 }
 
-# When retraining on 100% labeled data, allow more iterations for convergence
 LR_RETRAIN_CONFIG = {
     **LR_CONFIG,
-    "max_iter": 1000,
+    "max_iter": int(os.getenv("LR_RETRAIN_MAX_ITER", "1000")),
 }
 
 # ==============================================================================
 # RANDOM FOREST HYPERPARAMETERS
 # ==============================================================================
 RF_CONFIG = {
-    "n_estimators": 100,             # 100 trees for initial training
-    "max_depth": 20,                 # Cap depth to prevent overfitting
-    "class_weight": {0: 1, 1: 3},   # 3x penalty for missing anomalies
-    "max_features": "sqrt",          # Force tree diversity
+    "n_estimators": int(os.getenv("RF_N_ESTIMATORS", "100")),
+    "max_depth": int(os.getenv("RF_MAX_DEPTH", "20")),
+    "class_weight": {0: 1, 1: 3},
+    "max_features": os.getenv("RF_MAX_FEATURES", "sqrt"),
     "random_state": RANDOM_STATE,
-    "n_jobs": -1,                    # Use all CPU cores
+    "n_jobs": int(os.getenv("RF_N_JOBS", "-1")),
 }
 
-# When retraining on 100% labeled data, use more trees for stability
 RF_RETRAIN_CONFIG = {
     **RF_CONFIG,
-    "n_estimators": 200,             # 200 trees for maximum voting stability
+    "n_estimators": int(os.getenv("RF_RETRAIN_N_ESTIMATORS", "200")),
 }
+

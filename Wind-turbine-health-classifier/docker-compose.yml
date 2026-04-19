@@ -1,1 +1,23 @@
-# docker-compose
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: wind-turbine-health-api:latest
+    container_name: wthc-api
+    ports:
+      - "8000:8000"
+    environment:
+      - RF_N_ESTIMATORS=100
+      - LR_C=0.1
+    volumes:
+      # Optional: Mount models dir to load new models without rebuilding image
+      - ./models:/app/models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

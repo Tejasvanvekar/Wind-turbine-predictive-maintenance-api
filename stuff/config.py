@@ -78,3 +78,13 @@ RF_RETRAIN_CONFIG = {
     **RF_CONFIG,
     "n_estimators": 200,             # 200 trees for maximum voting stability
 }
+
+# ==============================================================================
+# MODEL SERIALIZATION
+# ==============================================================================
+# Directory where trained models are saved as .joblib files.
+# Points to the production project's models/ folder.
+MODELS_DIR = os.path.join(
+    BASE_DIR, "Wind-turbine-health-classifier", "models"
+)
+MODEL_FILE_EXTENSION = ".joblib"

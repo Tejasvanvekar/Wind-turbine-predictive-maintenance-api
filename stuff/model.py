@@ -29,6 +29,7 @@ from config import (
     RF_RETRAIN_CONFIG,
 )
 from preprocessing import run_preprocessing_pipeline, scale_features
+from serialization import save_model
 
 
 # ==============================================================================
@@ -130,6 +131,11 @@ def retrain_and_predict(model_factory, retrain_config, data, use_scaler=False):
     Retrain model on 100% labeled data and predict unknowns.
     For Logistic Regression, set use_scaler=True.
     For Random Forest, set use_scaler=False (trees don't need scaling).
+
+    Returns
+    -------
+    tuple
+        (df_result, model, scaler_or_None)
     """
     feature_cols = data["feature_cols"]
     df_labeled_sorted = data["df_labeled_sorted"]
@@ -142,6 +148,7 @@ def retrain_and_predict(model_factory, retrain_config, data, use_scaler=False):
     model_name = model_factory(retrain_config).__class__.__name__
     print(f"Training final {model_name} on 100% of labeled data...")
 
+    final_scaler = None
     if use_scaler:
         final_scaler = StandardScaler()
         X_full_scaled = final_scaler.fit_transform(X_full_labeled)
@@ -173,7 +180,7 @@ def retrain_and_predict(model_factory, retrain_config, data, use_scaler=False):
         print(f"  Turbine {aid}: Normal={n_normal}, Anomalous={n_anom} "
               f"(Anomaly rate: {n_anom/len(grp)*100:.1f}%)")
 
-    return df_result
+    return df_result, model, final_scaler
 
 
 # ==============================================================================
@@ -187,6 +194,7 @@ def run_logistic_regression_pipeline(data):
     2. Train on 80% split
     3. Evaluate on 20% split
     4. Retrain on 100% labeled data and predict unknowns
+    5. Save the final retrained model with metadata
     """
     print("\n" + "=" * 60)
     print("MODEL 1: LOGISTIC REGRESSION (BASELINE)")
@@ -213,11 +221,21 @@ def run_logistic_regression_pipeline(data):
 
     # Retrain on 100% and final predictions
     print("\n--- Retraining on 100% Labeled Data ---")
-    df_final = retrain_and_predict(
+    df_final, final_model, final_scaler = retrain_and_predict(
         create_logistic_regression, LR_RETRAIN_CONFIG, data, use_scaler=True
     )
 
-    return metrics, df_final
+    # Serialize the final retrained model (with scaler for inference)
+    print("\n--- Saving Model ---")
+    saved_path = save_model(
+        model=final_model,
+        model_type="logistic_regression",
+        metrics=metrics,
+        feature_cols=data["feature_cols"],
+        scaler=final_scaler,
+    )
+
+    return metrics, df_final, saved_path
 
 
 def run_random_forest_pipeline(data):
@@ -226,6 +244,7 @@ def run_random_forest_pipeline(data):
     1. Train on 80% split (no scaling needed — tree-based models are scale-invariant)
     2. Evaluate on 20% split
     3. Retrain on 100% labeled data and predict unknowns
+    4. Save the final retrained model with metadata
     """
     print("\n" + "=" * 60)
     print("MODEL 2: RANDOM FOREST")
@@ -246,11 +265,20 @@ def run_random_forest_pipeline(data):
 
     # Retrain on 100% and final predictions
     print("\n--- Retraining on 100% Labeled Data ---")
-    df_final = retrain_and_predict(
+    df_final, final_model, _ = retrain_and_predict(
         create_random_forest, RF_RETRAIN_CONFIG, data, use_scaler=False
     )
 
-    return metrics, df_final
+    # Serialize the final retrained model
+    print("\n--- Saving Model ---")
+    saved_path = save_model(
+        model=final_model,
+        model_type="random_forest",
+        metrics=metrics,
+        feature_cols=data["feature_cols"],
+    )
+
+    return metrics, df_final, saved_path
 
 
 # ==============================================================================
@@ -258,7 +286,7 @@ def run_random_forest_pipeline(data):
 # ==============================================================================
 
 def main():
-    """Run the complete ML pipeline: preprocessing → LR → RF."""
+    """Run the complete ML pipeline: preprocessing → LR → RF → serialize."""
     import warnings
     warnings.filterwarnings("ignore")
 
@@ -266,10 +294,10 @@ def main():
     data = run_preprocessing_pipeline()
 
     # Step 2: Logistic Regression
-    lr_metrics, lr_predictions = run_logistic_regression_pipeline(data)
+    lr_metrics, lr_predictions, lr_path = run_logistic_regression_pipeline(data)
 
     # Step 3: Random Forest
-    rf_metrics, rf_predictions = run_random_forest_pipeline(data)
+    rf_metrics, rf_predictions, rf_path = run_random_forest_pipeline(data)
 
     # Summary
     print("\n" + "=" * 60)
@@ -279,6 +307,9 @@ def main():
           f"PR-AUC: {lr_metrics['pr_auc']:.4f}")
     print(f"Random Forest       — F1-Macro: {rf_metrics['f1_macro']:.4f}, "
           f"PR-AUC: {rf_metrics['pr_auc']:.4f}")
+    print(f"\nSaved models:")
+    print(f"  LR: {lr_path}")
+    print(f"  RF: {rf_path}")
 
 
 if __name__ == "__main__":

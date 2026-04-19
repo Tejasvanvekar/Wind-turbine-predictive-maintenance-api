@@ -12,9 +12,16 @@ import os
 # FILE PATHS
 # ==============================================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODELS_DIR = os.path.join(os.path.dirname(BASE_DIR), "models")
+MODEL_FILE_EXTENSION = ".joblib"
+
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+PRODUCTION_ROOT = os.path.dirname(PROJECT_ROOT)
+STUFF_DIR = os.path.join(PRODUCTION_ROOT, "stuff")
+
 DATA_FILES = [
-    os.path.join(BASE_DIR, "wind_turbine_snippet_A.csv"),
-    os.path.join(BASE_DIR, "wind_turbine_snippet_B.csv"),
+    os.path.join(STUFF_DIR, "wind_turbine_snippet_A.csv"),
+    os.path.join(STUFF_DIR, "wind_turbine_snippet_B.csv"),
 ]
 CSV_SEPARATOR = ";"
 TIMESTAMP_COLUMN = "time_stamp"
@@ -76,5 +83,29 @@ RF_CONFIG = {
 RF_RETRAIN_CONFIG = {
     **RF_CONFIG,
     "n_estimators": int(os.getenv("RF_RETRAIN_N_ESTIMATORS", "200")),
+}
+
+# ==============================================================================
+# XGBOOST HYPERPARAMETERS
+# ==============================================================================
+XGB_CONFIG = {
+    "n_estimators": int(os.getenv("XGB_N_ESTIMATORS", "400")),
+    "max_depth": int(os.getenv("XGB_MAX_DEPTH", "7")),
+    "learning_rate": float(os.getenv("XGB_LEARNING_RATE", "0.02146")),
+    "subsample": float(os.getenv("XGB_SUBSAMPLE", "0.8953")),
+    "colsample_bytree": float(os.getenv("XGB_COLSAMPLE", "0.6213")),
+    "min_child_weight": int(os.getenv("XGB_MIN_CHILD_WEIGHT", "4")),
+    "gamma": float(os.getenv("XGB_GAMMA", "0.8409")),
+    "reg_alpha": float(os.getenv("XGB_REG_ALPHA", "0.1854")),
+    "reg_lambda": float(os.getenv("XGB_REG_LAMBDA", "8.096e-08")),
+    "scale_pos_weight": float(os.getenv("XGB_SCALE_POS_WEIGHT", "7.25")),
+    "random_state": RANDOM_STATE,
+    "n_jobs": int(os.getenv("XGB_N_JOBS", "-1")),
+    "eval_metric": "logloss",
+}
+
+XGB_RETRAIN_CONFIG = {
+    **XGB_CONFIG,
+    "n_estimators": int(os.getenv("XGB_RETRAIN_N_ESTIMATORS", "200")),
 }
 

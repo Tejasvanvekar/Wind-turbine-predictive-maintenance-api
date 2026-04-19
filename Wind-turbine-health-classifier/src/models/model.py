@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
     f1_score,
@@ -28,8 +29,10 @@ from config import (
     LR_RETRAIN_CONFIG,
     RF_CONFIG,
     RF_RETRAIN_CONFIG,
+    XGB_CONFIG,
+    XGB_RETRAIN_CONFIG,
 )
-from preprocessing import run_preprocessing_pipeline, scale_features
+from models.preprocessing import run_preprocessing_pipeline, scale_features
 
 
 # ==============================================================================
@@ -48,6 +51,13 @@ def create_random_forest(config=None):
     if config is None:
         config = RF_CONFIG
     return RandomForestClassifier(**config)
+
+
+def create_xgboost(config=None):
+    """Create an XGBClassifier with the given configuration."""
+    if config is None:
+        config = XGB_CONFIG
+    return XGBClassifier(**config)
 
 
 # ==============================================================================
@@ -254,6 +264,36 @@ def run_random_forest_pipeline(data):
     return metrics, df_final
 
 
+def run_xgboost_pipeline(data):
+    """
+    Full XGBoost pipeline:
+    1. Train on 80% split
+    2. Evaluate on 20% split
+    3. Retrain on 100% labeled data and predict unknowns
+    """
+    print("\n" + "=" * 60)
+    print("MODEL 3: XGBOOST")
+    print("=" * 60)
+
+    print("\n--- Training ---")
+    xgb_model = create_xgboost()
+    train_model(xgb_model, data["X_train"], data["y_train"])
+
+    print("\n--- Evaluation ---")
+    metrics = evaluate_model(xgb_model, data["X_val"], data["y_val"])
+
+    print("\n--- Predicting Unknown Samples ---")
+    predict_unknowns(xgb_model, data["X_unknown"], data["df_unknown"])
+
+    print("\n--- Retraining on 100% Labeled Data ---")
+    df_final = retrain_and_predict(
+        create_xgboost, XGB_RETRAIN_CONFIG, data, use_scaler=False
+    )
+
+    return metrics, df_final
+
+
+
 # ==============================================================================
 # MAIN ENTRY POINT
 # ==============================================================================
@@ -272,6 +312,9 @@ def main():
     # Step 3: Random Forest
     rf_metrics, rf_predictions = run_random_forest_pipeline(data)
 
+    # Step 4: XGBoost
+    xgb_metrics, xgb_predictions = run_xgboost_pipeline(data)
+
     # Summary
     print("\n" + "=" * 60)
     print("PIPELINE COMPLETE")
@@ -280,6 +323,8 @@ def main():
           f"PR-AUC: {lr_metrics['pr_auc']:.4f}")
     print(f"Random Forest       — F1-Macro: {rf_metrics['f1_macro']:.4f}, "
           f"PR-AUC: {rf_metrics['pr_auc']:.4f}")
+    print(f"XGBoost             — F1-Macro: {xgb_metrics['f1_macro']:.4f}, "
+          f"PR-AUC: {xgb_metrics['pr_auc']:.4f}")
 
 
 if __name__ == "__main__":

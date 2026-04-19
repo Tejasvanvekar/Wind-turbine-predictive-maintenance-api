@@ -18,6 +18,7 @@ class ModelType(str, Enum):
     """Supported model types."""
     LOGISTIC_REGRESSION = "logistic_regression"
     RANDOM_FOREST = "random_forest"
+    XGBOOST = "xgboost"
 
 
 # ==============================================================================

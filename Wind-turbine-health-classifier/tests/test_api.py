@@ -89,6 +89,10 @@ class TestModelInfoEndpoint:
         resp = client.get("/model-info", params={"model_type": "logistic_regression"})
         assert resp.status_code == 200
 
+    def test_xgb_info_returns_200(self, client):
+        resp = client.get("/model-info", params={"model_type": "xgboost"})
+        assert resp.status_code == 200
+
     def test_info_has_required_fields(self, client):
         body = client.get("/model-info", params={"model_type": "random_forest"}).json()
         for key in ("model_type", "model_class", "model_version",
@@ -100,7 +104,7 @@ class TestModelInfoEndpoint:
         assert body["feature_count"] > 0
 
     def test_invalid_model_type_returns_422(self, client):
-        resp = client.get("/model-info", params={"model_type": "xgboost"})
+        resp = client.get("/model-info", params={"model_type": "invalid_model"})
         assert resp.status_code == 422
 
 
@@ -149,9 +153,17 @@ class TestPredictEndpoint:
         assert resp.status_code == 200
         assert resp.json()["prediction"] in ("Normal", "Anomalous")
 
-    def test_both_models_return_same_feature_count(self, client, sample_features):
-        """Both models should accept the same feature set."""
-        for mt in ("random_forest", "logistic_regression"):
+    def test_xgb_prediction_also_works(self, client, sample_features):
+        resp = client.post("/predict", json={
+            "features": sample_features,
+            "model_type": "xgboost",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["prediction"] in ("Normal", "Anomalous")
+
+    def test_all_models_return_same_feature_count(self, client, sample_features):
+        """All models should accept the same feature set."""
+        for mt in ("random_forest", "logistic_regression", "xgboost"):
             resp = client.post("/predict", json={
                 "features": sample_features,
                 "model_type": mt,

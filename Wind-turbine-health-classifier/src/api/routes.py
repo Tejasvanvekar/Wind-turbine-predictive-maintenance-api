@@ -9,6 +9,7 @@ import logging
 import time
 
 import numpy as np
+import pandas as pd
 from fastapi import APIRouter, HTTPException
 
 from .schemas import (
@@ -110,9 +111,10 @@ def _build_feature_array(features: dict[str, float], expected: list[str]):
     """Build a numpy row vector with features in the correct column order."""
     if expected:
         values = [features[f] for f in expected]
+        return pd.DataFrame([values], columns=expected)
     else:
         values = list(features.values())
-    return np.array(values).reshape(1, -1)
+        return pd.DataFrame([values])
 
 
 # ==============================================================================
@@ -280,10 +282,10 @@ async def batch_predict(request: BatchPredictionRequest):
     # Build feature matrix (N samples × M features)
     if expected_features:
         rows = [[sample[f] for f in expected_features] for sample in request.samples]
+        X = pd.DataFrame(rows, columns=expected_features)
     else:
         rows = [list(sample.values()) for sample in request.samples]
-
-    X = np.array(rows)
+        X = pd.DataFrame(rows)
 
     # Apply scaler if bundled
     if scaler is not None:

@@ -65,7 +65,7 @@ class TestConfig:
         assert isinstance(RANDOM_STATE, int)
 
     def test_lr_config_keys(self):
-        required = {"C", "penalty", "solver", "max_iter", "random_state", "class_weight"}
+        required = {"C", "l1_ratio", "solver", "max_iter", "random_state", "class_weight"}
         assert required.issubset(set(LR_CONFIG.keys()))
 
     def test_rf_config_keys(self):
@@ -262,6 +262,8 @@ MIN_F1_MACRO_LR = 0.75
 MIN_PR_AUC_LR = 0.75
 MIN_F1_MACRO_RF = 0.90
 MIN_PR_AUC_RF = 0.85
+MIN_F1_MACRO_XGB = 0.90
+MIN_PR_AUC_XGB = 0.85
 
 
 class TestModelPerformance:
@@ -269,6 +271,16 @@ class TestModelPerformance:
     Verify that the production-serialized models meet minimum quality gates.
     These tests load the real .joblib artifacts (session-scoped fixtures).
     """
+
+    @pytest.fixture(scope="class")
+    def xgb_artifact(self):
+        """Load the real xgboost .joblib once per test class."""
+        import joblib, glob, os
+        files = sorted(glob.glob(os.path.join("models", "xgboost_v*.joblib")))
+        if not files:
+            pytest.skip("No xgboost .joblib found — run serialization first")
+        return joblib.load(files[-1])
+
 
     # --- Logistic Regression ---
 
@@ -324,13 +336,37 @@ class TestModelPerformance:
         names = rf_artifact["metadata"].get("feature_names", [])
         assert len(names) > 0, "RF artifact is missing feature_names"
 
+    # --- XGBoost ---
+
+    def test_xgb_f1_above_threshold(self, xgb_artifact):
+        metrics = xgb_artifact["metadata"].get("performance_metrics", {})
+        f1 = metrics.get("f1_macro")
+        assert f1 is not None, "f1_macro not found in XGB artifact metadata"
+        assert f1 >= MIN_F1_MACRO_XGB, (
+            f"XGB F1-Macro {f1:.4f} is below threshold {MIN_F1_MACRO_XGB}"
+        )
+
+    def test_xgb_prauc_above_threshold(self, xgb_artifact):
+        metrics = xgb_artifact["metadata"].get("performance_metrics", {})
+        prauc = metrics.get("pr_auc")
+        assert prauc is not None, "pr_auc not found in XGB artifact metadata"
+        assert prauc >= MIN_PR_AUC_XGB, (
+            f"XGB PR-AUC {prauc:.4f} is below threshold {MIN_PR_AUC_XGB}"
+        )
+
+    def test_xgb_artifact_no_scaler(self, xgb_artifact):
+        assert xgb_artifact.get("scaler") is None, (
+            "XGB artifact should NOT bundle a scaler"
+        )
+
     # --- Cross-model consistency ---
 
-    def test_both_models_share_same_features(self, lr_artifact, rf_artifact):
+    def test_all_models_share_same_features(self, lr_artifact, rf_artifact, xgb_artifact):
         lr_features = set(lr_artifact["metadata"].get("feature_names", []))
         rf_features = set(rf_artifact["metadata"].get("feature_names", []))
-        assert lr_features == rf_features, (
-            f"Feature mismatch: LR has {len(lr_features)}, RF has {len(rf_features)}"
+        xgb_features = set(xgb_artifact["metadata"].get("feature_names", []))
+        assert lr_features == rf_features == xgb_features, (
+            "Feature mismatch across models."
         )
 
     def test_rf_outperforms_lr_on_f1(self, lr_artifact, rf_artifact):

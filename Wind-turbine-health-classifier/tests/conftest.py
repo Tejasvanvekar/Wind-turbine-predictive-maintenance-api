@@ -15,7 +15,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC_DIR = os.path.join(PROJECT_ROOT, "src")
 STUFF_DIR = os.path.join(os.path.dirname(PROJECT_ROOT), "stuff")
 
-for p in (SRC_DIR, STUFF_DIR):
+for p in (STUFF_DIR, SRC_DIR):
     if p not in sys.path:
         sys.path.insert(0, p)
 

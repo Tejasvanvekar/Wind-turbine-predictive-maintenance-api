@@ -18,6 +18,11 @@ import joblib
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from .routes import router
 
@@ -47,6 +52,14 @@ def setup_logging():
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(logging.Formatter(log_format, datefmt=date_format))
         app_logger.addHandler(handler)
+
+        # File Rotation Logging (max 5MB per file, keep 5 backups)
+        import logging.handlers
+        file_handler = logging.handlers.RotatingFileHandler(
+            "server.log", maxBytes=5 * 1024 * 1024, backupCount=5
+        )
+        file_handler.setFormatter(logging.Formatter(log_format, datefmt=date_format))
+        app_logger.addHandler(file_handler)
 
     # Quiet down noisy third-party loggers
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
@@ -161,6 +174,9 @@ async def lifespan(app: FastAPI):
 # FASTAPI APP
 # ==============================================================================
 
+# Initialize Limiter
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(
     title="Wind Turbine Health Classifier",
     description=(
@@ -171,6 +187,19 @@ app = FastAPI(
     ),
     version="1.0.0",
     lifespan=lifespan,
+)
+
+# Register Limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS Configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust safely in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

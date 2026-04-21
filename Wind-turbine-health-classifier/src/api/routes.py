@@ -8,9 +8,14 @@ All routes use structured error responses and proper logging.
 import logging
 import time
 
+import json
+import os
+
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from .schemas import (
     ModelType,
@@ -26,6 +31,7 @@ from .schemas import (
 logger = logging.getLogger("wthc.api.routes")
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 # Label mapping (matches training config)
 LABEL_MAP = {0: "Normal", 1: "Anomalous"}
@@ -194,7 +200,8 @@ async def model_info(model_type: ModelType = ModelType.RANDOM_FOREST):
     summary="Single prediction",
     tags=["Prediction"],
 )
-async def predict(request: PredictionRequest):
+@limiter.limit("100/minute")
+async def predict(request: Request, payload: PredictionRequest):
     """
     Run anomaly prediction for a single turbine observation.
 
@@ -204,17 +211,25 @@ async def predict(request: PredictionRequest):
     """
     start = time.perf_counter()
 
-    artifact = _get_artifact(request.model_type)
+    artifact = _get_artifact(payload.model_type)
     model = artifact["model"]
     scaler = artifact.get("scaler")
     meta = artifact["metadata"]
     expected_features = meta.get("feature_names", [])
 
     # Validate features
-    _validate_features(request.features, expected_features)
+    _validate_features(payload.features, expected_features)
+
+    # Monitoring (Drift Logging Stub)
+    from .main import MODELS_DIR
+    try:
+        with open(os.path.join(MODELS_DIR, "drift_logs.jsonl"), "a") as f:
+            f.write(json.dumps(payload.features) + "\n")
+    except Exception as log_err:
+        logger.error("Failed to append drift log: %s", log_err)
 
     # Build feature array in correct column order
-    X = _build_feature_array(request.features, expected_features)
+    X = _build_feature_array(payload.features, expected_features)
 
     # Apply scaler if bundled (e.g. for Logistic Regression)
     if scaler is not None:
@@ -229,14 +244,14 @@ async def predict(request: PredictionRequest):
 
     logger.info(
         "Prediction: model=%s v%s, result=%s, prob=%.4f, time=%.1fms",
-        request.model_type.value, meta["model_version"],
+        payload.model_type.value, meta["model_version"],
         label, anomaly_proba, elapsed_ms
     )
 
     return PredictionResponse(
         prediction=label,
         anomaly_probability=round(float(anomaly_proba), 6),
-        model_type=request.model_type.value,
+        model_type=payload.model_type.value,
         model_version=meta["model_version"],
     )
 
@@ -251,7 +266,8 @@ async def predict(request: PredictionRequest):
     summary="Batch prediction",
     tags=["Prediction"],
 )
-async def batch_predict(request: BatchPredictionRequest):
+@limiter.limit("20/minute")
+async def batch_predict(request: Request, payload: BatchPredictionRequest):
     """
     Run anomaly prediction for **multiple** turbine observations in one call.
 
@@ -262,14 +278,14 @@ async def batch_predict(request: BatchPredictionRequest):
     """
     start = time.perf_counter()
 
-    artifact = _get_artifact(request.model_type)
+    artifact = _get_artifact(payload.model_type)
     model = artifact["model"]
     scaler = artifact.get("scaler")
     meta = artifact["metadata"]
     expected_features = meta.get("feature_names", [])
 
     # Validate every sample
-    for i, sample in enumerate(request.samples):
+    for i, sample in enumerate(payload.samples):
         try:
             _validate_features(sample, expected_features)
         except HTTPException as e:
@@ -281,10 +297,10 @@ async def batch_predict(request: BatchPredictionRequest):
 
     # Build feature matrix (N samples × M features)
     if expected_features:
-        rows = [[sample[f] for f in expected_features] for sample in request.samples]
+        rows = [[sample[f] for f in expected_features] for sample in payload.samples]
         X = pd.DataFrame(rows, columns=expected_features)
     else:
-        rows = [list(sample.values()) for sample in request.samples]
+        rows = [list(sample.values()) for sample in payload.samples]
         X = pd.DataFrame(rows)
 
     # Apply scaler if bundled
@@ -309,13 +325,13 @@ async def batch_predict(request: BatchPredictionRequest):
 
     logger.info(
         "Batch prediction: model=%s v%s, samples=%d, anomalous=%d, time=%.1fms",
-        request.model_type.value, meta["model_version"],
+        payload.model_type.value, meta["model_version"],
         len(items), n_anomalous, elapsed_ms
     )
 
     return BatchPredictionResponse(
         predictions=items,
-        model_type=request.model_type.value,
+        model_type=payload.model_type.value,
         model_version=meta["model_version"],
         total_samples=len(items),
     )

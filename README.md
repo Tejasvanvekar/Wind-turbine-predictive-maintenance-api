@@ -8,7 +8,7 @@
 
 A complete machine learning pipeline and production-ready FastAPI serving layer for predicting wind turbine anomalies based on SCADA sensor data.
 
-**Important Data Context:** This repository is specifically designed as the production inference layer for wind turbine structural health. **It is NOT a pre-trained universal model.** Before deploying, you must train the models (Logistic Regression & Random Forest) on your own personal SCADA `.csv` datasets using the provided pipeline scripts to generate the `.joblib` model artifacts. Once trained on your specific turbine sensor mappings, the API can be plugged in to serve real-time predictions.
+> **Disclaimer:** This repository is specifically designed as the production inference layer for wind turbine structural health. **It is NOT a pre-trained universal model.** Before deploying, you must train the models (Logistic Regression & Random Forest) on your own personal SCADA `.csv` datasets using the provided pipeline scripts to generate the `.joblib` model artifacts. Once trained on your specific turbine sensor mappings, the API can be plugged in to serve real-time predictions.
 
 This project trains and serves three models on ~200 numerical sensor features (including temperatures, wind speed, vibrations, voltages):
 - **Logistic Regression**: Linear baseline with L1 Regularization (feature selection).

@@ -18,7 +18,7 @@ This project trains and serves three models on ~200 numerical sensor features (i
 ### 📈 Uncapped Scalability (>250 Sensors)
 The architecture is inherently built to absorb massive data streams. If you integrate additional hardware (e.g., 250+ advanced turbine sensors), the tree-based models (XGBoost/RF) will non-linearly isolate the strongest predictors, while the API will automatically parse `.joblib` metadata to dynamically expand the expected JSON payload without requiring any source code modifications.
 
----
+--- 
 
 ## 📂 Project Structure
 
